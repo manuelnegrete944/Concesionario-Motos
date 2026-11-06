@@ -1,0 +1,123 @@
+@page
+@model IndexModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Concesionario Motos</title>
+    <style>
+        * { box-sizing:border-box; }
+        body { margin:0; font:16px system-ui,sans-serif; background:#f4f6f8; color:#162435; }
+        header { background:#142436; color:white; padding:2rem max(1rem,calc((100% - 70rem)/2)); }
+        header p { color:#c5d4e3; }
+        h1,h2,h3,p { margin-top:0; }
+        nav { display:flex; flex-wrap:wrap; gap:1rem; }
+        nav a { color:white; }
+        main { max-width:72rem; padding:1.25rem; margin:auto; }
+        section, .mensaje { background:white; border:1px solid #dce4ec; border-radius:.65rem; padding:1.2rem; margin-bottom:1rem; }
+        .columnas { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr)); gap:1rem; }
+        label { display:block; margin:.6rem 0; }
+        input,select,button { display:block; font:inherit; padding:.55rem; border:1px solid #798999; border-radius:.3rem; }
+        input,select { width:100%; margin-top:.25rem; }
+        button { background:#174b71; color:white; cursor:pointer; margin-top:.9rem; }
+        .tabla { overflow:auto; }
+        table { width:100%; border-collapse:collapse; }
+        th,td { padding:.55rem; border-bottom:1px solid #dce4ec; text-align:left; }
+        .numero { text-align:right; white-space:nowrap; }
+        .error { color:#921a22; border-color:#d87f83; }
+        :focus-visible { outline:3px solid #d0830b; outline-offset:2px; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Concesionario Motos</h1>
+    <p>Inventario, ventas y reportes · Etapa 5.3 web</p>
+    <nav aria-label="Secciones"><a href="#inventario">Inventario</a><a href="#operaciones">Operaciones</a><a href="#reportes">Reportes</a></nav>
+</header>
+<main>
+    @if (Model.Error != null)
+    {
+        <p class="mensaje error" role="alert">@Model.Error</p>
+    }
+    @if (Model.Mensaje != null)
+    {
+        <p class="mensaje" role="status">@Model.Mensaje</p>
+    }
+    @if (Model.Factura is { } venta)
+    {
+        <section aria-labelledby="factura">
+            <h2 id="factura">Factura de venta</h2>
+            <p>Vendedor @venta.CodigoVendedor · @venta.ModeloMoto · @venta.Cantidad unidad(es)</p>
+            <p>Fecha @venta.Fecha.ToString("dd/MM/yyyy HH:mm") · @(venta.MetodoPago == MetodoPago.Efectivo ? "Efectivo" : "Tarjeta de crédito")</p>
+            <p>Precio unitario @IndexModel.Dinero(venta.PrecioUnitario) · Subtotal @IndexModel.Dinero(venta.Subtotal) · Descuento @IndexModel.Dinero(venta.Descuento)</p>
+            <strong>Total cobrado @IndexModel.Dinero(venta.Total)</strong>
+        </section>
+    }
+    <div class="columnas" id="operaciones">
+        <section>
+            <h2>Registrar venta</h2>
+            <form method="post" asp-page-handler="Venta">
+                <label>Vendedor <select name="codigo">@foreach (var v in Model.Consolidado) { <option value="@v.Codigo">@v.Codigo</option> }</select></label>
+                <label>Motocicleta <select name="idMoto">@foreach (var moto in Model.Inventario) { <option value="@moto.Id">@moto.Modelo (@moto.Stock disponibles)</option> }</select></label>
+                <label>Cantidad <input name="cantidad" type="number" min="1" value="1" required /></label>
+                <label>Método de pago <select name="pago"><option value="1">Efectivo (2 % de descuento)</option><option value="2">Tarjeta de crédito</option></select></label>
+                <button>Registrar venta</button>
+            </form>
+        </section>
+        <section>
+            <h2>Ingresar lote</h2>
+            <form method="post" asp-page-handler="Lote">
+                <label>Motocicleta <select name="idMoto">@foreach (var moto in Model.Inventario) { <option value="@moto.Id">@moto.Modelo</option> }</select></label>
+                <label>Unidades nuevas <input name="cantidad" type="number" min="1" value="1" required /></label>
+                <button>Agregar al inventario</button>
+            </form>
+        </section>
+    </div>
+    <section id="inventario">
+        <h2>Inventario</h2>
+        <div class="tabla"><table>
+            <thead><tr><th>ID</th><th>Modelo</th><th class="numero">Stock</th><th class="numero">Precio</th></tr></thead>
+            <tbody>
+            @foreach (var moto in Model.Inventario)
+            {
+                <tr><td>@moto.Id</td><td>@moto.Modelo</td><td class="numero">@moto.Stock</td><td class="numero">@IndexModel.Dinero(moto.Precio)</td></tr>
+            }
+            </tbody>
+        </table></div>
+    </section>
+    <section id="reportes">
+        <h2>Reporte individual</h2>
+        <form method="get" action="/#reportes">
+            <label>Vendedor <select name="codigo">
+                @foreach (var v in Model.Consolidado) { <option value="@v.Codigo" selected="@(v.Codigo == Model.Codigo)">@v.Codigo</option> }
+            </select></label>
+            <button>Consultar vendedor</button>
+        </form>
+        @if (Model.Codigo is int codigo)
+        {
+            var resumen = Model.Consolidado.First(v => v.Codigo == codigo);
+            <h3>Vendedor @codigo</h3>
+            <p>Total de unidades vendidas <strong>@resumen.Unidades</strong> · Total recaudado <strong>@IndexModel.Dinero(resumen.Total)</strong></p>
+            @if (resumen.Unidades == 0) { <p>Este vendedor todavía no tiene ventas.</p> }
+            <table>
+                <thead><tr><th>Modelo</th><th class="numero">Unidades</th></tr></thead>
+                <tbody>@foreach (var fila in Model.Detalle) { <tr><td>@fila.Modelo</td><td class="numero">@fila.Unidades</td></tr> }</tbody>
+            </table>
+        }
+    </section>
+    <section>
+        <h2>Reporte general</h2>
+        <div class="tabla"><table>
+            <thead><tr><th>Vendedor</th><th class="numero">Unidades</th><th class="numero">Recaudo</th></tr></thead>
+            <tbody>@foreach (var v in Model.Consolidado) { <tr><td>@v.Codigo</td><td class="numero">@v.Unidades</td><td class="numero">@IndexModel.Dinero(v.Total)</td></tr> }</tbody>
+            <tfoot><tr><th>Total</th><td class="numero">@Model.Consolidado.Sum(v => v.Unidades)</td><td class="numero">@IndexModel.Dinero(Model.Consolidado.Sum(v => v.Total))</td></tr></tfoot>
+        </table></div>
+    </section>
+    <p>Los datos de esta demostración se conservan mientras el servicio esté en ejecución.</p>
+</main>
+</body>
+</html>
